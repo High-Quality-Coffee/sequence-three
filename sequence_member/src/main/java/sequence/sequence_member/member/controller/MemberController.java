@@ -3,12 +3,15 @@ package sequence.sequence_member.member.controller;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.Errors;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import sequence.sequence_member.global.response.Code;
 import sequence.sequence_member.member.dto.AcceptProjectOutputDTO;
 import sequence.sequence_member.member.dto.CustomUserDetails;
 import sequence.sequence_member.member.dto.InviteProjectOutputDTO;
@@ -30,45 +33,60 @@ public class MemberController {
     private final InviteAccessService inviteAccessService;
     private final MemberSearchService memberSearchService;
 
-    @PostMapping("/join")
-    public ApiResponseData<String> join(@RequestBody @Valid MemberDTO memberDTO, Errors errors){
+    @PostMapping(value = "/join", consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE})
+    public ResponseEntity<ApiResponseData<String>> join(@RequestPart("memberDTO") @Valid MemberDTO memberDTO, Errors errors,
+                                                        @RequestPart(name="authImgFile" ,required = false) MultipartFile authImgFile){
         //회원가입 유효성 검사 실패 시
         if(errors.hasErrors()){
             Map<String, String> validatorResult = memberService.validateHandling(errors);
 
-            //ResponseMsg errorResponse = new ResponseMsg(400, "Validation Failed", validatorResult);
-            return ApiResponseData.failure(400, validatorResult.values().toString());
+            return ResponseEntity.badRequest().body(ApiResponseData.failure(Code.INVALID_INPUT.getCode(), validatorResult.values().toString()));
         }
 
-        memberService.save(memberDTO);
-        //ResponseMsg responseMsg = new ResponseMsg(200, "회원가입이 완료되었습니다.", null);
-        return ApiResponseData.success("회원가입이 완료되었습니다.");
+        memberService.save(memberDTO,authImgFile);
+        return ResponseEntity.ok().body(ApiResponseData.success("회원가입이 완료되었습니다."));
     }
 
-
-    //시큐리티 컨텍스트에 저장된 authtoken을 확인하는 용도로 컨트롤러 작성
-    //jwt는 stateless이지만, 생성되었을때, 세션을 통해 잠시 저장되었다가 삭제된다. (stateless로 봐도 무방하다)
-    @GetMapping("/")
-    public String mainPage(){
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        return "mainPage " + username;
-    }
-
-    @RequestMapping("/check_username")
-    public ApiResponseData<String> checkUser(@RequestParam(name = "username",required = false) String username){
+    @GetMapping("/check_username")
+    public ResponseEntity<ApiResponseData<String>> checkUser(@RequestParam(name = "username") String username){
         // 파라미터 유효성 검사
         if (username == null || username.trim().isEmpty()) {
-            return ApiResponseData.failure(400,"아이디를 입력해주세요");
+            return ResponseEntity.badRequest().body(ApiResponseData.failure(Code.CAN_NOT_FIND_RESOURCE.getCode(), "아이디를 입력해주세요"));
         }
 
         //중복 아이디가 존재하는 경우
         if(memberService.checkUser(username)){
-            return ApiResponseData.failure(400,"동일한 아이디가 이미 존재합니다.");
+            return ResponseEntity.badRequest().body(ApiResponseData.failure(Code.INVALID_INPUT.getCode(), "동일한 아이디가 이미 존재합니다."));
         }
 
         //아이디가 존재하지 않는 경우
-        return ApiResponseData.success("사용가능한 아이디 입니다.");
+        return ResponseEntity.ok().body(ApiResponseData.success("사용가능한 아이디 입니다."));
+    }
+
+    @GetMapping("/check_email")
+    public ResponseEntity<ApiResponseData<String>> checkEmail(@RequestParam(name = "email") String email){
+        if(email == null || email.trim().isEmpty()){
+            return ResponseEntity.badRequest().body(ApiResponseData.failure(Code.CAN_NOT_FIND_RESOURCE.getCode(), "이메일이 없습니다"));
+        }
+
+        if (memberService.checkEmail(email)) {
+            return ResponseEntity.badRequest().body(ApiResponseData.failure(Code.INVALID_INPUT.getCode(), "동일한 이메일이 이미 존재합니다."));
+        }
+
+        return ResponseEntity.ok().body(ApiResponseData.success("사용가능한 이메일 입니다."));
+    }
+
+    @GetMapping("/check_nickname")
+    public ResponseEntity<ApiResponseData<String>> checkNickname(@RequestParam(name = "nickname") String nickname){
+        if(nickname == null || nickname.trim().isEmpty()){
+            return ResponseEntity.badRequest().body(ApiResponseData.failure(Code.CAN_NOT_FIND_RESOURCE.getCode(), "닉네임이 없습니다"));
+        }
+
+        if (memberService.checkNickname(nickname)) {
+            return ResponseEntity.badRequest().body(ApiResponseData.failure(Code.INVALID_INPUT.getCode(), "동일한 닉네임이 이미 존재합니다."));
+        }
+
+        return ResponseEntity.ok().body(ApiResponseData.success("사용가능한 닉네임 입니다."));
     }
 
     //유저가 초대받은 프로젝트 목록을 조회하는 컨트롤러
@@ -81,14 +99,14 @@ public class MemberController {
     @PostMapping("/invited-projects/{projectInvitedMemberId}")
     public ResponseEntity<ApiResponseData<String>> acceptInvite(@AuthenticationPrincipal CustomUserDetails customUserDetails, @PathVariable Long projectInvitedMemberId){
         inviteAccessService.acceptInvite(customUserDetails, projectInvitedMemberId);
-        return ResponseEntity.ok(ApiResponseData.success("프로젝트 초대를 수락하였습니다."));
+        return ResponseEntity.ok(ApiResponseData.success(null));
     }
 
     //유저가 초대받은 프로젝트에 거절하는 컨트롤러
     @DeleteMapping("/invited-projects/{projectInvitedMemberId}")
     public ResponseEntity<ApiResponseData<String>> rejectInvite(@AuthenticationPrincipal CustomUserDetails customUserDetails, @PathVariable Long projectInvitedMemberId){
         inviteAccessService.rejectInvite(customUserDetails, projectInvitedMemberId);
-        return ResponseEntity.ok(ApiResponseData.success("프로젝트 초대를 거절하였습니다."));
+        return ResponseEntity.ok(ApiResponseData.success(null));
     }
 
     //유저가 승인한(참여하는) 프로젝트 목록을 조회하는 컨트롤러
@@ -102,4 +120,5 @@ public class MemberController {
     public ResponseEntity<ApiResponseData<List<String>>> searchMembers(@RequestParam(name = "nickname") String nickname){
         return ResponseEntity.ok(ApiResponseData.success(memberSearchService.searchMemberNicknames(nickname)));
     }
+
 }

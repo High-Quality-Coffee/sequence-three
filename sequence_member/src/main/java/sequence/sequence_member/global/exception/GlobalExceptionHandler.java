@@ -1,19 +1,33 @@
 package sequence.sequence_member.global.exception;
 
 import com.fasterxml.jackson.databind.JsonMappingException;
-import org.apache.coyote.BadRequestException;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import sequence.sequence_member.global.response.ApiResponseData;
 import sequence.sequence_member.global.response.Code;
 
-@ControllerAdvice
+@Slf4j
+@RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<String> handleRuntimeException(RuntimeException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("런타임 오류 발생: " + e.getMessage());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> handleException(Exception e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("예상치 못한 오류 발생: " + e.getMessage());
+    }
 
     // @Valid 유효성 검사에서 걸리는 예외 처리
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -62,11 +76,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(code.getStatus()).body(response);
     }
 
+    @ExceptionHandler(ExpiredJwtException.class)
+    public ResponseEntity<ApiResponseData<String>> handleExpiredJwtException(ExpiredJwtException e){
+        return ResponseEntity.status(Code.EXPIRED_TOKEN.getStatus()).body(ApiResponseData.of(Code.VALIDATION_ERROR.getCode(),
+                e.getMessage(),null));
+    }
+
 /**
  * 커스텀 오류 처리
 * ---------------------------------------------------------------------------------------------------
 *
 */
+    //MultipartException 예외처리
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiResponseData<String>> handleCustomMultipartException(MultipartException ex){
+        Code code = Code.INVALID_FILE_EXTENSION;
+        return ResponseEntity.status(code.getStatus()).body(ApiResponseData.of(code.getCode(), code.getMessage()+": "+ ex.getMessage(),null));
+    }
+
     // UserNotFoundException 예외 처리
     @ExceptionHandler(UserNotFindException.class)
     public ResponseEntity<ApiResponseData<String>> handleCustomNotFoundException(UserNotFindException ex){
@@ -92,8 +119,8 @@ public class GlobalExceptionHandler {
     }
 
     // BadRequestException 예외 처리
-    @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<ApiResponseData<String>> handleCustomNotFoundException(BadRequestException ex){
+    @ExceptionHandler(BAD_REQUEST_EXCEPTION.class)
+    public ResponseEntity<ApiResponseData<String>> handleCustomNotFoundException(BAD_REQUEST_EXCEPTION ex){
         Code code = Code.BAD_REQUEST;
         // 반환할 메시지와 HTTP 상태 코드 설정
         return ResponseEntity.status(code.getStatus()).body(ApiResponseData.of(code.getCode(), code.getMessage()+": "+ ex.getMessage(),null));

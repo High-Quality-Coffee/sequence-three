@@ -1,10 +1,10 @@
 package sequence.sequence_member.member.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import sequence.sequence_member.global.utils.BaseTimeEntity;
+import sequence.sequence_member.global.utils.DataConvertor;
 import sequence.sequence_member.member.dto.MemberDTO;
 
 import java.util.ArrayList;
@@ -52,12 +52,17 @@ public class MemberEntity extends BaseTimeEntity {
     @Column(name="portfolio", length = 150)
     private String portfolio; // todo - 파일을 minio에 저장하고 url을 저장하는 방식으로 변경
 
-    @Column(name="nickname", length = 45)
+    @Column(name="nickname", length = 45, unique = true)
     private String nickname;
 
-    @Column(name="profile_img")
+    @Column(name="school_name", nullable = false)
+    private String schoolName;
+
+    @Column(name="profile_img", length = 400)
     private String profileImg; // todo - 파일을 minio에 저장하고 url을 저장하는 방식으로 변경
 
+    @Column(nullable = false, columnDefinition = "BOOLEAN")
+    private boolean isDeleted;
 
     // AwardEntity와의 일대다 관계 설정
     @OneToMany(fetch = FetchType.LAZY,mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -72,6 +77,8 @@ public class MemberEntity extends BaseTimeEntity {
     private List<ExperienceEntity> experiences=new ArrayList<>();
 
     @OneToOne(fetch = FetchType.LAZY,cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "education_id")
+
     private EducationEntity education;
 
     public enum Gender{
@@ -89,8 +96,9 @@ public class MemberEntity extends BaseTimeEntity {
         memberEntity.setPhone(memberDTO.getPhone());
         memberEntity.setEmail(memberDTO.getEmail());
         memberEntity.setNickname(memberDTO.getNickname());
+        memberEntity.setSchoolName(memberDTO.getSchoolName());
         memberEntity.setIntroduction(memberDTO.getIntroduction());
-        memberEntity.setPortfolio(memberDTO.getPortfolio());
+        memberEntity.setPortfolio(DataConvertor.listToString(memberDTO.getPortfolio()));
         return memberEntity;
     }
 }
